@@ -1,16 +1,17 @@
 import os
-from flask import Flask
+from flask import Flask, jsonify, request
 from spotipy.oauth2 import SpotifyClientCredentials
 import spotipy
 import lyricsgenius
 import Levenshtein as lv
 import shutil
+import json
 import re
 
 from pprint import pprint
 
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=os.environ["SPOTIFY_client_id"],
-                                               client_secret=os.environ['SPOTIFY_client_secret'],))
+                                                           client_secret=os.environ['SPOTIFY_client_secret'], ))
 
 
 def remove_sqbrackets(s):
@@ -41,9 +42,6 @@ def make_file_name(s):
     return f'{title}-{art}.txt'
 
 
-
-
-
 def big_fuction(playlist_id):
     """
     :param playlist_id:
@@ -66,7 +64,6 @@ def big_fuction(playlist_id):
         t = response['items']
         offset = offset + len(response['items'])
         print(offset, "/", response['total'])
-
 
     playlist = []
     for i in range(response['total']):
@@ -165,21 +162,7 @@ def big_fuction(playlist_id):
     # ZIP
     # shutil.make_archive(f"{playlist_name}", "zip", f"{playlist_name}")
 
-    return 0
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return success_list
 
 
 # TODO let the user choose to suppress the warning or add them to failed
@@ -236,7 +219,6 @@ print(failed_list)
 print(len(success_list))
 '''
 
-
 # for now the only cleaning i do is remove everything in the square brackets.
 # i have concerns about the repeating choras and interlude parts but i have to get a baseline first
 # possible idea to replace all the numbers with there words
@@ -254,18 +236,19 @@ from langdetect import detect
 if detect(cleaner_song) != 'en':
 '''
 
-
-
-
-
 app = Flask(__name__)
 
 
-@app.route("/")
+@app.route("/", methods=['POST'])
 def hello_world():
     # name = os.environ.get("NAME", "World")
-    big_fuction('37i9dQZF1DX9wC1KY45plY')
-    return 0
+    record = json.loads(request.data)
+    print(record['playlist_id'])
+    songs = big_fuction(record['playlist_id'])
+    out = [str(song.title) for song in songs]
+    print(type(out))
+    return jsonify({'found_songs': out})
+    # , 'warning_songs':warning_list, 'not_found_songs':error_list})
 
 
 if __name__ == "__main__":
