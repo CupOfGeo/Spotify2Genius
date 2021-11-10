@@ -165,7 +165,7 @@ def big_fuction(playlist_id):
     # ZIP
     # shutil.make_archive(f"{playlist_name}", "zip", f"{playlist_name}")
 
-    return -1
+    return 0
 
 
 
@@ -265,7 +265,7 @@ app = Flask(__name__)
 def hello_world():
     # name = os.environ.get("NAME", "World")
     big_fuction('37i9dQZF1DX9wC1KY45plY')
-    return
+    return 0
 
 
 if __name__ == "__main__":
