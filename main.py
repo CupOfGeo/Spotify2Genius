@@ -52,6 +52,7 @@ def big_fuction(playlist_id):
     playlist_name = results['name']
     offset = 0
 
+    playlist = []
     while True:
         response = sp.playlist_items(pl_id,
                                      offset=offset,
@@ -65,10 +66,11 @@ def big_fuction(playlist_id):
         offset = offset + len(response['items'])
         print(offset, "/", response['total'])
 
-    playlist = []
-    for i in range(response['total']):
-        song, artists = t[i]['track']['name'], t[i]['track']['artists'][0]['name']
-        playlist.append({'song': song, 'artist': artists})
+
+        for i in range(len(t)):
+            song, artists = t[i]['track']['name'], t[i]['track']['artists'][0]['name']
+            playlist.append({'song': song, 'artist': artists})
+    print(len(playlist))
 
     genius = lyricsgenius.Genius(os.environ['GENIUS_SECRET'])
     genius.response_format = 'plain'
