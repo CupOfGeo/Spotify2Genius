@@ -11,6 +11,8 @@ import tempfile
 import shutil
 from google.cloud import storage
 
+import gc
+
 
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=os.environ["SPOTIFY_client_id"],
                                                            client_secret=os.environ['SPOTIFY_client_secret'], ))
@@ -181,6 +183,7 @@ def big_fuction(user, playlist_id):
                 print(x)
         write_file_blob('central-bucket-george', user, f'{playlist_name}.zip', f"{tmpdirname}/{playlist_name}.zip")
 
+    gc.collect()
     return success_list
 
 

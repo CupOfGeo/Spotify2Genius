@@ -1,6 +1,6 @@
 import json
 import requests
-URL = "0.0.0.0:8080/"
+URL = "https://spotify2genius-2bzqm6tl4q-ue.a.run.app/"
 #data = {'playlist_id':'37i9dQZF1DXb3m918yXHxA'}
 data = {'user':'george', 'playlist_id':'1bsirFMYamoch1A5GyqDkA'}
 data_json = json.dumps(data)
