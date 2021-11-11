@@ -1,6 +1,6 @@
 import json
 import requests
-URL = "http://127.0.0.1:5000/"
+URL = "0.0.0.0:8080/"
 #data = {'playlist_id':'37i9dQZF1DXb3m918yXHxA'}
 data = {'user':'george', 'playlist_id':'1bsirFMYamoch1A5GyqDkA'}
 data_json = json.dumps(data)

@@ -11,7 +11,6 @@ import tempfile
 import shutil
 from google.cloud import storage
 
-from pprint import pprint
 
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=os.environ["SPOTIFY_client_id"],
                                                            client_secret=os.environ['SPOTIFY_client_secret'], ))
