@@ -167,24 +167,30 @@ def big_fuction(user, playlist_id):
     print(f'Failed:{fails}/{total}')
     print(f'Success:{total - warns - fails}/{total}')
 
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        print('created temporary directory', tmpdirname)
-        for song in success_list:
-            clean_song = simple_clean(song.lyrics)
-            file_name = make_file_name(song)
-            path = f'/{tmpdirname}/{file_name}'
-            with open(path, 'w+') as fp:
-                fp.write(clean_song)
+    # I have a memory leak somewhere
+    playlist = []
+    failed_list = []
+    warning_list_search = []
+    warning_list_found = []
+    gc.collect()
 
-        shutil.make_archive(f"{tmpdirname}/{playlist_name}", "zip", f"{tmpdirname}")
-        print(f'{tmpdirname}/{playlist_name}')
-        for x in os.listdir(tmpdirname):
-            if '.zip' in x:
-                print(x)
-        write_file_blob('central-bucket-george', user, f'{playlist_name}.zip', f"{tmpdirname}/{playlist_name}.zip")
+
+    os.mkdir(f'{playlist_name}/')
+    for song in success_list:
+        clean_song = simple_clean(song.lyrics)
+        file_name = make_file_name(song)
+        path = f'{playlist_name}/{file_name}'
+        with open(path, 'w+') as fp:
+            fp.write(clean_song)
+
+    shutil.make_archive(f"{playlist_name}", "zip", f"{playlist_name}")
+    write_file_blob('central-bucket-george', user, f'{playlist_name}.zip', f"{playlist_name}.zip")
+    shutil.rmtree(playlist_name)
+    os.remove(f"{playlist_name}.zip")
 
     gc.collect()
-    return success_list
+    out = [str(song.title) for song in success_list]
+    return out
 
 
 # TODO let the user choose to suppress the warning or add them to failed
@@ -266,8 +272,7 @@ def hello():
     # name = os.environ.get("NAME", "World")
     record = json.loads(request.data)
     print(record['playlist_id'])
-    songs = big_fuction(record['user'], record['playlist_id'])
-    out = [str(song.title) for song in songs]
+    out = big_fuction(record['user'], record['playlist_id'])
     print(type(out))
     return jsonify({'found_songs': out})
     # , 'warning_songs':warning_list, 'not_found_songs':error_list})
