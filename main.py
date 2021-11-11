@@ -86,7 +86,7 @@ def big_fuction(user, playlist_id):
             playlist.append({'song': song, 'artist': artists})
     print(len(playlist))
 
-    genius = lyricsgenius.Genius(os.environ['GENIUS_SECRET'])
+    genius = lyricsgenius.Genius(os.environ['GENIUS_SECRET'], timeout=15, retries=3)
     genius.response_format = 'plain'
     genius.skip_non_songs = True  # Include hits thought to be non-songs (e.g. track lists)
     # genius.excluded_terms = []
@@ -111,6 +111,8 @@ def big_fuction(user, playlist_id):
             continue
 
         print("DEBUG:", art.name)
+
+
         song = art.song(i['song'])
         # if No results found for the song
         # try to get lyrics if cant check to remove dash -
