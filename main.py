@@ -4,15 +4,28 @@ from spotipy.oauth2 import SpotifyClientCredentials
 import spotipy
 import lyricsgenius
 import Levenshtein as lv
-import shutil
+
 import json
 import re
+import tempfile
+import shutil
+from google.cloud import storage
 
 from pprint import pprint
 
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=os.environ["SPOTIFY_client_id"],
                                                            client_secret=os.environ['SPOTIFY_client_secret'], ))
 
+
+def write_file_blob(bucket_name,path, file_name, file_path):
+    # Instantiate a CGS client
+    client = storage.Client()
+
+    # Retrieve all blobs with a prefix matching the folder
+    bucket = client.get_bucket(bucket_name)
+    # Create a new blob and upload the file's content.
+    my_file = bucket.blob(f'{path}/dataset/{file_name}')
+    my_file.upload_from_filename(file_path)
 
 def remove_sqbrackets(s):
     s = s.replace('EmbedShare URLCopyEmbedCopy', '')
@@ -42,7 +55,7 @@ def make_file_name(s):
     return f'{title}-{art}.txt'
 
 
-def big_fuction(playlist_id):
+def big_fuction(user, playlist_id):
     """
     :param playlist_id:
     :return: the songs and lyrics from that playlist
@@ -153,16 +166,21 @@ def big_fuction(playlist_id):
     print(f'Failed:{fails}/{total}')
     print(f'Success:{total - warns - fails}/{total}')
 
-    # os.mkdir(f'{playlist_name}/')
-    # for song in success_list:
-    #     clean_song = simple_clean(song.lyrics)
-    #     file_name = make_file_name(song)
-    #     path = f'/content/{playlist_name}/{file_name}'
-    #     with open(path, 'w+') as fp:
-    #         fp.write(clean_song)
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        print('created temporary directory', tmpdirname)
+        for song in success_list:
+            clean_song = simple_clean(song.lyrics)
+            file_name = make_file_name(song)
+            path = f'/{tmpdirname}/{file_name}'
+            with open(path, 'w+') as fp:
+                fp.write(clean_song)
 
-    # ZIP
-    # shutil.make_archive(f"{playlist_name}", "zip", f"{playlist_name}")
+        shutil.make_archive(f"{tmpdirname}/{playlist_name}", "zip", f"{tmpdirname}")
+        print(f'{tmpdirname}/{playlist_name}')
+        for x in os.listdir(tmpdirname):
+            if '.zip' in x:
+                print(x)
+        write_file_blob('central-bucket-george', user, f'{playlist_name}.zip', f"{tmpdirname}/{playlist_name}.zip")
 
     return success_list
 
@@ -242,11 +260,11 @@ app = Flask(__name__)
 
 
 @app.route("/", methods=['POST'])
-def hello_world():
+def hello():
     # name = os.environ.get("NAME", "World")
     record = json.loads(request.data)
     print(record['playlist_id'])
-    songs = big_fuction(record['playlist_id'])
+    songs = big_fuction(record['user'], record['playlist_id'])
     out = [str(song.title) for song in songs]
     print(type(out))
     return jsonify({'found_songs': out})
