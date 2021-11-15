@@ -81,12 +81,12 @@ def big_fuction(user, playlist_id):
         print(offset, "/", response['total'])
 
 
-        for i in range(len(t)):
-            song, artists = t[i]['track']['name'], t[i]['track']['artists'][0]['name']
+        for spotify_song in range(len(t)):
+            song, artists = t[spotify_song]['track']['name'], t[spotify_song]['track']['artists'][0]['name']
             playlist.append({'song': song, 'artist': artists})
-    print(len(playlist))
+    print(f'{playlist_name}: {len(playlist)}')
 
-    genius = lyricsgenius.Genius(os.environ['GENIUS_SECRET'], timeout=15, retries=3)
+    genius = lyricsgenius.Genius(os.environ['GENIUS_SECRET'], timeout=5, retries=3)
     genius.response_format = 'plain'
     genius.skip_non_songs = True  # Include hits thought to be non-songs (e.g. track lists)
     # genius.excluded_terms = []
@@ -98,76 +98,85 @@ def big_fuction(user, playlist_id):
     # going to have a problem when the user want to suppress the warning because im only saving the search
     warning_list_search = []
     warning_list_found = []
+    debug = True
 
-    for i in playlist:
-        print(f'SEARCHING : {i["song"]}')
+    for idx, spotify_song in enumerate(playlist):
+        if debug:
+            print(f'{idx} SEARCHING : {spotify_song["song"]}')
 
-        art = genius.search_artist(i['artist'], max_songs=0)
+        art = genius.search_artist(spotify_song['artist'], max_songs=0)
         # No artist found
         if art == None:
-            print('NO ARTIST:', i['artist'])
-            failed_list.append(i)
-            print('-' * 20)
+            if debug:
+                print('NO ARTIST:', spotify_song['artist'])
+                print('-' * 20)
+            failed_list.append(spotify_song)
             continue
+        if debug:
+            print("DEBUG:", art.name)
 
-        print("DEBUG:", art.name)
 
-
-        song = art.song(i['song'])
+        song = art.song(spotify_song['song'])
         # if No results found for the song
         # try to get lyrics if cant check to remove dash -
-        if song == None and '-' in i['song']:
-            i['song'] = i['song'][:i['song'].index('-')]
-            song = art.song(i['song'])
+        if song == None and '-' in spotify_song['song']:
+            spotify_song['song'] = spotify_song['song'][:spotify_song['song'].index('-')]
+            song = art.song(spotify_song['song'])
 
         # if song None and it didnt have a dash or the dash was removed failed
         if song == None:
-            print("CANT FIND:", i['song'])
-            failed_list.append(i)
+            if debug:
+                print("CANT FIND:", spotify_song['song'])
+            failed_list.append(spotify_song)
         # song found
         else:
             # check distance
-            distance = lv.distance(i['song'], song.title)
+            distance = lv.distance(spotify_song['song'], song.title)
 
             # check for warning
             if distance >= 5:
                 # check if dash in searching song and remove and recheck distance
-                if '-' in i['song']:
-                    i['song'] = i['song'][:i['song'].index('-')]
-                    song = art.song(i['song'])
-                    new_distance = lv.distance(i['song'], song.title)
+                if '-' in spotify_song['song']:
+                    spotify_song['song'] = spotify_song['song'][:spotify_song['song'].index('-')]
+                    song = art.song(spotify_song['song'])
+                    new_distance = lv.distance(spotify_song['song'], song.title)
                     # new check still over threshold warning
                     if new_distance >= 5:
-                        print(f'WARNING LARGE DISTANCE {distance} and {new_distance}')
-                        print('SONG FOUND   :', song.title)
-                        warning_list_search.append(i)
+                        if debug:
+                            print(f'WARNING LARGE DISTANCE {distance} and {new_distance}')
+                            print('SONG FOUND   :', song.title)
+                        warning_list_search.append(spotify_song)
                         warning_list_found.append(song)
                     # now passes
                     else:
-                        print('SONG FOUND   :', song.title)
+                        if debug:
+                            print('SONG FOUND   :', song.title)
                         success_list.append(song)
                 # else no dash warning
                 else:
-                    print(f'WARNING LARGE DISTANCE {distance}')
-                    print('SONG FOUND   :', song.title)
-                    warning_list_search.append(i)
+                    if debug:
+                        print(f'WARNING LARGE DISTANCE {distance}')
+                        print('SONG FOUND   :', song.title)
+                    warning_list_search.append(spotify_song)
                     warning_list_found.append(song)
 
 
             # no warning all good
             else:
-                print('SONG FOUND   :', song.title)
+                if debug:
+                    print('SONG FOUND   :', song.title)
                 success_list.append(song)
-
-        print('-' * 20)
+        if debug:
+            print('-' * 20)
 
     total = len(playlist)
     warns = len(warning_list_found)
     fails = len(failed_list)
     # assert success_list = total-warns-fails ;)
-    print(f'Warnings: {warns}/{total}')
-    print(f'Failed:{fails}/{total}')
-    print(f'Success:{total - warns - fails}/{total}')
+    if debug:
+        print(f'Warnings: {warns}/{total}')
+        print(f'Failed:{fails}/{total}')
+        print(f'Success:{total - warns - fails}/{total}')
 
     # I have a memory leak somewhere
     playlist = []
