@@ -15,9 +15,14 @@ import gc
 from dotenv import load_dotenv
 
 load_dotenv()
-
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=os.environ["SPOTIFY_client_id"],
                                                            client_secret=os.environ['SPOTIFY_client_secret'], ))
+
+genius = lyricsgenius.Genius(os.environ['GENIUS_SECRET'], timeout=5, retries=3)
+genius.response_format = 'plain'
+genius.skip_non_songs = True  # Include hits thought to be non-songs (e.g. track lists)
+# genius.excluded_terms = []
+genius.verbose = False
 
 
 def write_file_blob(bucket_name, path, file_name, file_path):
@@ -31,7 +36,25 @@ def write_file_blob(bucket_name, path, file_name, file_path):
     my_file.upload_from_filename(file_path)
 
 
-def remove_sqbrackets(s):
+def clean_lyrics(s):
+    # currently unused the sq_brackets with [Verse 1] are useful for generation
+    # for now the only cleaning i do is remove everything in the square brackets.
+    # i have concerns about the repeating chorus and interlude parts but i have to get a baseline first
+    # possible idea to replace all the numbers with there words
+    """
+    pip install num2words
+    from num2words import num2words
+
+    # Most common usage.
+    print(num2words(36))
+    """
+
+    '''
+    pip install langdetect
+    from langdetect import detect
+    if detect(cleaner_song) != 'en':
+    '''
+
     s = s.replace('EmbedShare URLCopyEmbedCopy', '')
     # fixed the newline to save to csv correctly
     s = s.replace('\n', '\\n')
@@ -40,35 +63,49 @@ def remove_sqbrackets(s):
     return r
 
 
-def simple_clean(s):
-    s = s.replace('EmbedShare URLCopyEmbedCopy', '')
+def simple_clean(lyrics):
+    """
+    removes the last line thats not song
+    replaces all newline characters as these characters would be removed during tokenizing
+    :param lyrics: raw lyrics
+    :return: cleaner lyrics
+    """
+    lyrics = lyrics.replace('EmbedShare URLCopyEmbedCopy', '')
     # fixed the newline to save to csv correctly
-    s = s.replace('\n', '\\n')
-    s = s.rstrip('0123456789')
-    return s
+    lyrics = lyrics.replace('\n', '\\n')
+    lyrics = lyrics.rstrip('0123456789')
+    return lyrics
 
 
-def make_file_name(s):
+def make_file_name(found_song):
+    """
+    makes a more command line friendly file name
+    :param found_song:
+    :return: what that file should be named
+    """
+
     def remove_space_slash(st):
         st = st.replace('/', '-')
         st = st.replace(' ', '_')
         return st
 
-    art = remove_space_slash(s.artist)
-    title = remove_space_slash(s.title)
+    art = remove_space_slash(found_song.artist)
+    title = remove_space_slash(found_song.title)
     return f'{title}-{art}.txt'
 
 
-def big_fuction(user, playlist_id):
+def get_spotify_playlist(playlist_id):
     """
-    :param playlist_id:
-    :return: the songs and lyrics from that playlist
+    Gets all the songs from a spotify playlist from the spotify api
+    :param playlist_id: spotify playlist id (the end bit of the url)
+    :return: playlist, playlist_name
     """
     pl_id = f'spotify:playlist:{playlist_id}'
     results = sp.playlist(pl_id)
     playlist_name = results['name']
     offset = 0
 
+    # getting all the songs in the spotify playlist
     playlist = []
     while True:
         response = sp.playlist_items(pl_id,
@@ -78,7 +115,6 @@ def big_fuction(user, playlist_id):
         if len(response['items']) == 0:
             break
 
-        # pprint(response['items'])
         t = response['items']
         offset = offset + len(response['items'])
         print(offset, "/", response['total'])
@@ -87,35 +123,44 @@ def big_fuction(user, playlist_id):
             song, artists = t[spotify_song]['track']['name'], t[spotify_song]['track']['artists'][0]['name']
             playlist.append({'song': song, 'artist': artists})
     print(f'{playlist_name}: {len(playlist)}')
+    return playlist, playlist_name
 
-    genius = lyricsgenius.Genius(os.environ['GENIUS_SECRET'], timeout=5, retries=3)
-    genius.response_format = 'plain'
-    genius.skip_non_songs = True  # Include hits thought to be non-songs (e.g. track lists)
-    # genius.excluded_terms = []
-    genius.verbose = False
 
+def match_to_genius(playlist, debug=False, threshold=5):
+    """
+    goes throughout the spotify playlist and looks up the songs name and artist with the genius api
+    a found match is a song that's within the letter distance threshold.
+    a song will be flagged with a warning if something is found but outside the threshold
+    a song will fail if the genius api returns None
+    :param playlist: spotify_playlist
+    :param debug:
+    :param threshold: letter distance threshold for what should be flagged as a warning
+    :return: found a list of Song Objects. warnings and failed are lists of stings with song title and author
+    """
     # if it cant find a song let the user enter a url to the song from genius
     found = []
     failed = []
-    # going to have a problem when the user want to suppress the warning because im only saving the search
+    # TODO going to have a problem when the user want to suppress the warning because im only saving the search
     warnings = []
 
-    debug = True
-
+    # Matching the spotify playlist songs into genius songs
     count = 0
     for spotify_song in playlist:
         count += 1
-        print(f'{count} SEARCHING : {spotify_song["song"]}')
+        if debug:
+            print(f'{count} SEARCHING : {spotify_song["song"]}')
 
         song_search = genius.search_song(spotify_song['song'], spotify_song['artist'])
         if song_search is not None:
-            print(f"SONG SEARCH : {song_search.title} {song_search.artist}")
+            if debug:
+                print(f"SONG SEARCH : {song_search.title} {song_search.artist}")
 
             distance = lv.distance(spotify_song['song'], song_search.title)
 
             # check for warning
-            if distance >= 5:
-                print('WARNING')
+            if distance >= threshold:
+                if debug:
+                    print('WARNING')
                 warnings.append(f'{song_search.title} by {song_search.artist}')
 
             else:
@@ -131,13 +176,22 @@ def big_fuction(user, playlist_id):
     fails = len(failed)
     # assert success_list = total-warns-fails ;)
     if debug:
-        print(f'Warnings: {warns}/{total}')
+        print(f"Warnings: {warns}/{total}")
         print(f'Failed:{fails}/{total}')
         print(f'Success:{total - warns - fails}/{total}')
 
-    # I have a memory leak somewhere
-    gc.collect()
+    return found, warnings, failed
 
+
+def save_lyrics_to_drive(user, found, playlist_name, bucket_name):
+    """
+    saves all found song lyrics to file then zip and upload to google storage bucket then delete folder and zip file
+    :param bucket_name: which bucket
+    :param user: user to specify which "folder" in the bucket to save it to
+    :param found: songs list
+    :param playlist_name: playlist name for naming folder
+    :return: nothing
+    """
     os.mkdir(f'{playlist_name}/')
     for song in found:
         clean_song = simple_clean(song.lyrics)
@@ -147,17 +201,37 @@ def big_fuction(user, playlist_id):
             fp.write(clean_song)
 
     shutil.make_archive(f"{playlist_name}", "zip", f"{playlist_name}")
-    write_file_blob('central-bucket-george', user, f'{playlist_name}.zip', f"{playlist_name}.zip")
+    write_file_blob(bucket_name, user, f'{playlist_name}.zip', f"{playlist_name}.zip")
     shutil.rmtree(playlist_name)
     os.remove(f"{playlist_name}.zip")
 
+
+def big_fuction(user, playlist_id, debug=False):
+    """
+    :param user: user needed for which bucket to save it in
+    :param playlist_id:
+    :param debug: print statements
+    :return: the songs and lyrics from that playlist
+    """
+
+    # getting playlist from spotify
+    playlist, playlist_name = get_spotify_playlist(playlist_id)
+
+    found, warnings, failed = match_to_genius(playlist, debug)
+
+    save_lyrics_to_drive(user, found, playlist_name, 'central-bucket-george')
+
+    # was having some memory issues before when trying to save to TempFiles
+    # which doesnt work with cloud run as it has no storage and saves everything in ram
     gc.collect()
-    out = [str(song.title) for song in found]
-    return out
+    found_song_titles = [str(song.title) for song in found]
+    return found_song_titles
 
 
 # TODO let the user choose to suppress the warning or add them to failed
 '''
+def fix_warnings():
+
 ans = ''
 for search, found in zip(warning_list_search,warning_list_found):
   print(f'{search["song"]} , {found.title}')
@@ -180,6 +254,8 @@ for search, found in zip(warning_list_search,warning_list_found):
 # let the user add custom lyrics wheather it be there own or the correct lyrics from another website
 
 '''
+def fix_failed();
+
 for fail in failed_list:
   ans = input(f'Enter a genius url for {fail["song"]} by {fail["artist"]} or nothing to skip')
   #example url https://genius.com/Johnny-cash-folsom-prison-blues-lyrics
@@ -208,23 +284,6 @@ for fail in failed_list:
 print(warning_list_search)
 print(failed_list)
 print(len(success_list))
-'''
-
-# for now the only cleaning i do is remove everything in the square brackets.
-# i have concerns about the repeating choras and interlude parts but i have to get a baseline first
-# possible idea to replace all the numbers with there words
-"""
-pip install num2words
-from num2words import num2words
-
-# Most common usage.
-print(num2words(36))
-"""
-
-'''
-!pip install langdetect
-from langdetect import detect
-if detect(cleaner_song) != 'en':
 '''
 
 app = Flask(__name__)
