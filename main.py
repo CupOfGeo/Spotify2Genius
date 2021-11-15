@@ -7,18 +7,20 @@ import Levenshtein as lv
 
 import json
 import re
-import tempfile
+
 import shutil
 from google.cloud import storage
 
 import gc
+from dotenv import load_dotenv
 
+load_dotenv()
 
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=os.environ["SPOTIFY_client_id"],
                                                            client_secret=os.environ['SPOTIFY_client_secret'], ))
 
 
-def write_file_blob(bucket_name,path, file_name, file_path):
+def write_file_blob(bucket_name, path, file_name, file_path):
     # Instantiate a CGS client
     client = storage.Client()
 
@@ -27,6 +29,7 @@ def write_file_blob(bucket_name,path, file_name, file_path):
     # Create a new blob and upload the file's content.
     my_file = bucket.blob(f'{path}/dataset/{file_name}')
     my_file.upload_from_filename(file_path)
+
 
 def remove_sqbrackets(s):
     s = s.replace('EmbedShare URLCopyEmbedCopy', '')
@@ -80,7 +83,6 @@ def big_fuction(user, playlist_id):
         offset = offset + len(response['items'])
         print(offset, "/", response['total'])
 
-
         for spotify_song in range(len(t)):
             song, artists = t[spotify_song]['track']['name'], t[spotify_song]['track']['artists'][0]['name']
             playlist.append({'song': song, 'artist': artists})
@@ -93,85 +95,40 @@ def big_fuction(user, playlist_id):
     genius.verbose = False
 
     # if it cant find a song let the user enter a url to the song from genius
-    success_list = []
-    failed_list = []
+    found = []
+    failed = []
     # going to have a problem when the user want to suppress the warning because im only saving the search
-    warning_list_search = []
-    warning_list_found = []
+    warnings = []
+
     debug = True
 
-    for idx, spotify_song in enumerate(playlist):
-        if debug:
-            print(f'{idx} SEARCHING : {spotify_song["song"]}')
+    count = 0
+    for spotify_song in playlist:
+        count += 1
+        print(f'{count} SEARCHING : {spotify_song["song"]}')
 
-        art = genius.search_artist(spotify_song['artist'], max_songs=0)
-        # No artist found
-        if art == None:
-            if debug:
-                print('NO ARTIST:', spotify_song['artist'])
-                print('-' * 20)
-            failed_list.append(spotify_song)
-            continue
-        if debug:
-            print("DEBUG:", art.name)
+        song_search = genius.search_song(spotify_song['song'], spotify_song['artist'])
+        if song_search is not None:
+            print(f"SONG SEARCH : {song_search.title} {song_search.artist}")
 
-
-        song = art.song(spotify_song['song'])
-        # if No results found for the song
-        # try to get lyrics if cant check to remove dash -
-        if song == None and '-' in spotify_song['song']:
-            spotify_song['song'] = spotify_song['song'][:spotify_song['song'].index('-')]
-            song = art.song(spotify_song['song'])
-
-        # if song None and it didnt have a dash or the dash was removed failed
-        if song == None:
-            if debug:
-                print("CANT FIND:", spotify_song['song'])
-            failed_list.append(spotify_song)
-        # song found
-        else:
-            # check distance
-            distance = lv.distance(spotify_song['song'], song.title)
+            distance = lv.distance(spotify_song['song'], song_search.title)
 
             # check for warning
             if distance >= 5:
-                # check if dash in searching song and remove and recheck distance
-                if '-' in spotify_song['song']:
-                    spotify_song['song'] = spotify_song['song'][:spotify_song['song'].index('-')]
-                    song = art.song(spotify_song['song'])
-                    new_distance = lv.distance(spotify_song['song'], song.title)
-                    # new check still over threshold warning
-                    if new_distance >= 5:
-                        if debug:
-                            print(f'WARNING LARGE DISTANCE {distance} and {new_distance}')
-                            print('SONG FOUND   :', song.title)
-                        warning_list_search.append(spotify_song)
-                        warning_list_found.append(song)
-                    # now passes
-                    else:
-                        if debug:
-                            print('SONG FOUND   :', song.title)
-                        success_list.append(song)
-                # else no dash warning
-                else:
-                    if debug:
-                        print(f'WARNING LARGE DISTANCE {distance}')
-                        print('SONG FOUND   :', song.title)
-                    warning_list_search.append(spotify_song)
-                    warning_list_found.append(song)
+                print('WARNING')
+                warnings.append(f'{song_search.title} by {song_search.artist}')
 
-
-            # no warning all good
             else:
-                if debug:
-                    print('SONG FOUND   :', song.title)
-                success_list.append(song)
-        if debug:
-            print('-' * 20)
+                found.append(song_search)
+        else:
+            print(f'SONG SEARCH : NONE')
+            failed.append(f"{spotify_song['song']} by {spotify_song['artist']}")
+
+        print('-' * 20)
 
     total = len(playlist)
-    warns = len(warning_list_found)
-    fails = len(failed_list)
+    warns = len(warnings)
+    fails = len(failed)
     # assert success_list = total-warns-fails ;)
     if debug:
         print(f'Warnings: {warns}/{total}')
@@ -179,15 +136,10 @@ def big_fuction(user, playlist_id):
         print(f'Success:{total - warns - fails}/{total}')
 
     # I have a memory leak somewhere
-    playlist = []
-    failed_list = []
-    warning_list_search = []
-    warning_list_found = []
     gc.collect()
 
-
     os.mkdir(f'{playlist_name}/')
-    for song in success_list:
+    for song in found:
         clean_song = simple_clean(song.lyrics)
         file_name = make_file_name(song)
         path = f'{playlist_name}/{file_name}'
@@ -200,7 +152,7 @@ def big_fuction(user, playlist_id):
     os.remove(f"{playlist_name}.zip")
 
     gc.collect()
-    out = [str(song.title) for song in success_list]
+    out = [str(song.title) for song in found]
     return out
 
 
