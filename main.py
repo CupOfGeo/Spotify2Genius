@@ -15,6 +15,7 @@ import gc
 from dotenv import load_dotenv
 
 load_dotenv()
+
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=os.environ["SPOTIFY_client_id"],
                                                            client_secret=os.environ['SPOTIFY_client_secret'], ))
 
@@ -23,6 +24,8 @@ genius.response_format = 'plain'
 genius.skip_non_songs = True  # Include hits thought to be non-songs (e.g. track lists)
 # genius.excluded_terms = []
 genius.verbose = False
+
+app = Flask(__name__)
 
 
 def write_file_blob(bucket_name, path, file_name, file_path):
@@ -166,10 +169,12 @@ def match_to_genius(playlist, debug=False, threshold=5):
             else:
                 found.append(song_search)
         else:
-            print(f'SONG SEARCH : NONE')
+            if debug:
+                print(f'SONG SEARCH : NONE')
             failed.append(f"{spotify_song['song']} by {spotify_song['artist']}")
 
-        print('-' * 20)
+        if debug:
+            print('-' * 20)
 
     total = len(playlist)
     warns = len(warnings)
@@ -228,6 +233,19 @@ def big_fuction(user, playlist_id, debug=False):
     return found_song_titles
 
 
+@app.route("/", methods=['POST'])
+def hello():
+    # name = os.environ.get("NAME", "World")
+    record = json.loads(request.data)
+    print(record['playlist_id'])
+    out = big_fuction(record['user'], record['playlist_id'], record['debug'])
+    return jsonify({'found_songs': out})
+    # , 'warning_songs':warning_list, 'not_found_songs':error_list})
+
+
+if __name__ == "__main__":
+    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+
 # TODO let the user choose to suppress the warning or add them to failed
 '''
 def fix_warnings():
@@ -285,20 +303,3 @@ print(warning_list_search)
 print(failed_list)
 print(len(success_list))
 '''
-
-app = Flask(__name__)
-
-
-@app.route("/", methods=['POST'])
-def hello():
-    # name = os.environ.get("NAME", "World")
-    record = json.loads(request.data)
-    print(record['playlist_id'])
-    out = big_fuction(record['user'], record['playlist_id'])
-    print(type(out))
-    return jsonify({'found_songs': out})
-    # , 'warning_songs':warning_list, 'not_found_songs':error_list})
-
-
-if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
