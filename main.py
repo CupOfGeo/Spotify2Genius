@@ -227,7 +227,7 @@ def big_fuction(user, playlist_id, debug=False):
     save_lyrics_to_drive(user, found, playlist_name, 'central-bucket-george')
 
     # was having some memory issues before when trying to save to TempFiles
-    # which doesnt work with cloud run as it has no storage and saves everything in ram
+    # which doesnt work with cloud run as it has no storage and saves everything in ram keeping gc bc why not
     gc.collect()
     found_song_titles = [str(song.title) for song in found]
     return found_song_titles
