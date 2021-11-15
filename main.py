@@ -188,27 +188,27 @@ def match_to_genius(playlist, debug=False, threshold=5):
     return found, warnings, failed
 
 
-def save_lyrics_to_drive(user, found, playlist_name, bucket_name):
+def save_lyrics_to_drive(user, found, playlist_id, bucket_name):
     """
     saves all found song lyrics to file then zip and upload to google storage bucket then delete folder and zip file
     :param bucket_name: which bucket
     :param user: user to specify which "folder" in the bucket to save it to
     :param found: songs list
-    :param playlist_name: playlist name for naming folder
+    :param playlist_id: playlist name for naming folder
     :return: nothing
     """
-    os.mkdir(f'{playlist_name}/')
+    os.mkdir(f'{playlist_id}/')
     for song in found:
         clean_song = simple_clean(song.lyrics)
         file_name = make_file_name(song)
-        path = f'{playlist_name}/{file_name}'
+        path = f'{playlist_id}/{file_name}'
         with open(path, 'w+') as fp:
             fp.write(clean_song)
 
-    shutil.make_archive(f"{playlist_name}", "zip", f"{playlist_name}")
-    write_file_blob(bucket_name, user, f'{playlist_name}.zip', f"{playlist_name}.zip")
-    shutil.rmtree(playlist_name)
-    os.remove(f"{playlist_name}.zip")
+    shutil.make_archive(f"{playlist_id}", "zip", f"{playlist_id}")
+    write_file_blob(bucket_name, user, f'{playlist_id}.zip', f"{playlist_id}.zip")
+    shutil.rmtree(playlist_id)
+    os.remove(f"{playlist_id}.zip")
 
 
 def big_fuction(user, playlist_id, debug=False):
@@ -224,7 +224,7 @@ def big_fuction(user, playlist_id, debug=False):
 
     found, warnings, failed = match_to_genius(playlist, debug)
 
-    save_lyrics_to_drive(user, found, playlist_name, 'central-bucket-george')
+    save_lyrics_to_drive(user, found, playlist_id, 'central-bucket-george')
 
     # was having some memory issues before when trying to save to TempFiles
     # which doesnt work with cloud run as it has no storage and saves everything in ram keeping gc bc why not
