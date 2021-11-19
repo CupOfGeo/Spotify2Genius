@@ -10,7 +10,7 @@ load_dotenv()
 
 
 URL = os.environ["URL"]
-URL = 'http://192.168.1.201:8080/'
+# URL = 'http://192.168.1.201:8080/'
 # western cowboy 73 songs
 data = {'user': 'george_test', 'project_name': 'cowboy', 'playlist_id': '1bsirFMYamoch1A5GyqDkA', 'debug': True}
 
