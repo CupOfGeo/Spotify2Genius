@@ -287,7 +287,7 @@ def big_function(user: str, playlist_id: str, project_name: str, debug: bool = F
     # getting playlist from spotify
     playlist, playlist_name = get_spotify_playlist(playlist_id)
 
-    found, warnings, failed = make_threads(playlist, num_threads=4, debug=True)
+    found, warnings, failed = make_threads(playlist, num_threads=4, threshold=5, debug=debug)
 
     save_lyrics_to_drive(user, found, playlist_id, project_name, 'central-bucket-george')
 
@@ -303,6 +303,11 @@ def big_function(user: str, playlist_id: str, project_name: str, debug: bool = F
 def hello():
     # name = os.environ.get("NAME", "World")
     record = json.loads(request.data)
+    test_list = record.keys()
+    for param in ['user', 'playlist_id', 'project_name', 'debug']:
+        if param not in record.keys():
+            return jsonify({'found_songs': None, 'Error': f'No {param} set'})
+
     print(record['playlist_id'])
     out = big_function(record['user'], record['playlist_id'], record['project_name'], record['debug'])
     return jsonify({'found_songs': out})
